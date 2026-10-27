@@ -1,0 +1,317 @@
+</html>
+<!DOCTYPE html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Museums Across the United States</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.7.0/dist/leaflet.css">
+
+    <style>
+body {
+      margin: 0;
+      font-family: 'Times New Roman', Times, serif;
+      background: "white";
+    }
+
+    h1 {
+      text-align: center;
+      padding: 8px;
+      margin: 0;
+      font-size: 32px;
+    }
+
+    #map {
+    height: calc(100vh - 52px);
+    width: 100%;
+}
+
+   .legend {
+    background: white;
+    padding: 8px 10px 4px;
+    border: 1px solid #999;
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+    width: 205px;
+    box-sizing: border-box;
+}
+
+.legend h4 {
+    margin: 0 0 2px;
+    font-size: 16px;
+    text-align: left;
+}
+
+.map-description {
+    background: white;
+    padding: 10px 12px;
+    border: 1px solid #999;
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+    width: 230px;
+    box-sizing: border-box;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.map-description h4 {
+    margin: 0 0 5px;
+    font-size: 14px;
+}
+
+.north-arrow {
+            text-align: center;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            font-size: 14px;
+            background: white;
+            padding: 6px;
+            border-radius: 4px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+        }
+        .arrow-up {
+            width: 0; 
+            height: 0; 
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 15px solid #333;
+            margin-bottom: 2px;
+        }
+    </style>
+
+</head>
+<body>
+    <h1>Museums Across the United States (2018)</h1>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.0/dist/leaflet.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-ajax/2.1.0/leaflet.ajax.min.js"></script>
+
+   <script>
+        var map = L.map('map').setView([39.5, -98.35], 5);
+        
+        var Esri_NatGeoWorldMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', {
+	attribution: 'Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC, Map Author: Megan Clarke',
+	maxZoom: 16
+}).addTo(map);
+
+    var selectedState = null;
+
+  var states = new L.GeoJSON.AJAX('us_states.json', {
+    style: function (feature) {
+        return {
+            color: 'gray',
+            weight: 1,
+            fillOpacity: 0
+        };
+    },
+
+    onEachFeature: function (feature, layer) {
+        // State borders will be highlighted by museum circle hover
+    }
+});
+
+states.addTo(map);
+
+states.on('data:loaded', function () {
+    states.bringToBack();
+});
+
+function highlightState(stateName) {
+    var foundState = null;
+
+    states.eachLayer(function (stateLayer) {
+        var props = stateLayer.feature.properties;
+
+        var name = props.NAME || props.name ||
+                   props.STATE_NAME || props.STATE;
+
+        if (name === stateName) {
+            stateLayer.setStyle({
+                color: "black",
+                weight: 3
+            });
+
+            foundState = stateLayer;
+        }
+    });
+
+    return foundState;
+}
+
+var museums = new L.GeoJSON.AJAX("museum.geojson", {
+
+    pointToLayer: function (feature, latlng) {
+        var count = Number(feature.properties["Museums_Per_100,000k"]) || 0;
+        var stateName = feature.properties.State;
+
+        var circle = L.circleMarker(latlng, {
+            radius: Math.sqrt(count) * 4,
+            color: "#7a2929",
+            weight: 1,
+            fillColor: "#c84c4c",
+            fillOpacity: 0.7,
+            interactive: true
+        });
+
+        circle.on("mouseover", function () {
+            circle.setStyle({
+                fillColor: "#8f2525",
+                fillOpacity: 0.75,
+                weight: 2
+            });
+
+            if (!circle.isPopupOpen()) {
+                if (selectedState) {
+                    states.resetStyle(selectedState);
+                }
+
+                selectedState = highlightState(stateName);
+            }
+        });
+
+        circle.on("mouseout", function () {
+            if (!circle.isPopupOpen()) {
+                circle.setStyle({
+                    fillColor: "#c84c4c",
+                    fillOpacity: 0.7,
+                    weight: 1
+                });
+
+                if (selectedState) {
+                    states.resetStyle(selectedState);
+                    selectedState = null;
+                }
+            }
+        });
+
+        return circle;
+    },
+
+    onEachFeature: function (feature, layer) {
+        var p = feature.properties;
+
+        layer.bindPopup(
+            '<h3 style="color: darkred;">' + p.State + '</h3>' +
+            '<b>Museum Count:</b> ' + p.Museum_Count + '<br>' +
+            '<b>Population:</b> ' + p.Estimated_Pop + '<br>' +
+            '<b>Museums per 100,000 people:</b> ' +
+            p["Museums_Per_100,000k"]
+        );
+
+        layer.on("popupopen", function () {
+            layer.setStyle({
+                fillColor: "#8f2525",
+                fillOpacity: 0.95,
+                weight: 2
+            });
+
+            if (selectedState) {
+                states.resetStyle(selectedState);
+            }
+
+            selectedState = highlightState(p.State);
+        });
+
+        layer.on("popupclose", function () {
+            layer.setStyle({
+                fillColor: "#c84c4c",
+                fillOpacity: 0.7,
+                weight: 1
+            });
+
+            if (selectedState) {
+                states.resetStyle(selectedState);
+                selectedState = null;
+            }
+        });
+    }
+
+}).addTo(map);
+
+var legend = L.control({ position: 'bottomright' });
+
+legend.onAdd = function (map) {
+    var div = L.DomUtil.create('div', 'legend');
+
+    var values = [10, 25, 50];
+    var scale = 4;
+    var baseline = 112;
+
+    var circles = values.map(function (count) {
+        return {
+            count: count,
+            radius: Math.sqrt(count) * scale
+        };
+    });
+
+    div.innerHTML = `
+        <h4>Museums Per Capita (100,000)</h4>
+
+        <svg width="185" height="125" viewBox="0 0 185 125">
+            <line x1="8" y1="${baseline}" x2="100" y2="${baseline}"
+                stroke="#777" stroke-width="1"/>
+
+            ${circles.slice().reverse().map(function (item) {
+                return `
+                    <circle
+                        cx="48"
+                        cy="${baseline - item.radius}"
+                        r="${item.radius}"
+                        fill="#b85c58"
+                        fill-opacity="0.75"
+                        stroke="#8c3535"
+                        stroke-width="1.5"/>
+                `;
+            }).join('')}
+
+            <text x="112" y="51" font-size="12">50</text>
+            <text x="112" y="76" font-size="12">25</text>
+            <text x="112" y="104" font-size="12">10</text>
+        </svg>
+    `;
+
+    return div;
+};
+
+legend.addTo(map);
+
+var description = L.control({ position: 'bottomleft' });
+
+description.onAdd = function (map) {
+    var div = L.DomUtil.create('div', 'map-description');
+
+    div.innerHTML = `
+        <h4>About This Map</h4>
+        <p>There are an estimated 35,144 active museums across the United States. This number comprises Historical Societies & Historical preservation, General Museums, Art Museums, Science & Technology Centers, Children’s Museums, Natural History & Anthropology Museums, and lastly Living Collections & Nature based Institutions. The states with the highest numbers of museums are California (3,133), New York (2,522), and Texas (2,251). However, because of differences in population, these numbers do not accurately represent the distribution of museums across the country. Instead, mapping the number of museums per capita, using a rate per 100,000 people, more accurately displays which states have worked hard to preserve their history.</p> 
+
+        <p>Based on these new calculations, the states with the highest number of museums per capita are Vermont (48.9), Maine (42.8), and Wyoming (40.8). The data used for this map comes from the <a href="https://www.imls.gov/" target="_blank">
+    Institute of Museum and Library Services (IMLS)
+</a> and was last recorded in 2018 which is an important data limitation to consider when interpreting this map.</p>
+
+    `;
+
+    return div;
+};
+
+description.addTo(map);
+
+const northArrowControl = L.control({ position: 'topright' });
+
+        northArrowControl.onAdd = function() {
+            const div = L.DomUtil.create('div', 'north-arrow');
+            div.innerHTML = '<div class="arrow-up"></div><div>N</div>';
+            return div;
+        };
+
+        northArrowControl.addTo(map);
+
+    </script>
+
+
+</body>
+
+</html>
